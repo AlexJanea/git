@@ -2482,9 +2482,10 @@ int repo_index_has_changes(struct repository *repo,
 	}
 }
 
-#define WRITE_BUFFER_SIZE (2 * 1024 * 1024)
-static unsigned char write_buffer[WRITE_BUFFER_SIZE];
+#define WRITE_BUFFER_ALLOCATION (2 * 1024 * 1024)
+static unsigned char write_buffer[WRITE_BUFFER_ALLOCATION];
 static unsigned long write_buffer_len;
+static unsigned long write_buffer_size = 8192;
 
 static int ce_write_flush(git_hash_ctx *context, int fd)
 {
@@ -2504,12 +2505,12 @@ static int ce_write(git_hash_ctx *context, int fd, void *data, unsigned int len)
 {
 	while (len) {
 		unsigned int buffered = write_buffer_len;
-		unsigned int partial = WRITE_BUFFER_SIZE - buffered;
+		unsigned int partial = write_buffer_size - buffered;
 		if (partial > len)
 			partial = len;
 		memcpy(write_buffer + buffered, data, partial);
 		buffered += partial;
-		if (buffered == WRITE_BUFFER_SIZE) {
+		if (buffered == write_buffer_size) {
 			write_buffer_len = buffered;
 			if (ce_write_flush(context, fd))
 				return -1;
@@ -2546,7 +2547,7 @@ static int ce_flush(git_hash_ctx *context, int fd, unsigned char *hash)
 	}
 
 	/* Flush first if not enough space for hash signature */
-	if (left + the_hash_algo->rawsz > WRITE_BUFFER_SIZE) {
+	if (left + the_hash_algo->rawsz > write_buffer_size) {
 		if (write_in_full(fd, write_buffer, left) < 0)
 			return -1;
 		left = 0;
@@ -2819,6 +2820,12 @@ static int do_write_index(struct index_state *istate, struct tempfile *tempfile,
 	struct index_entry_offset_table *ieot = NULL;
 	int nr, nr_threads;
 
+	write_buffer_size = git_env_ulong("GIT_WRITE_BUFFER_SIZE", 8192);
+	if (write_buffer_size > WRITE_BUFFER_ALLOCATION)
+		write_buffer_size = WRITE_BUFFER_ALLOCATION;
+	else if (write_buffer_size < 8192)
+		write_buffer_size = 8192;
+
 	for (i = removed = extended = 0; i < entries; i++) {
 		if (cache[i]->ce_flags & CE_REMOVE)
 			removed++;
@@ -3074,6 +3081,8 @@ static int do_write_index(struct index_state *istate, struct tempfile *tempfile,
 			   istate->version);
 	trace2_data_intmax("index", the_repository, "write/cache_nr",
 			   istate->cache_nr);
+
+    trace2_data_intmax("index", the_repository, "write/buffer_size", write_buffer_size);
 
 	return 0;
 }
