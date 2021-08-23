@@ -329,6 +329,9 @@ int mingw_getpagesize(void);
 #define getpagesize mingw_getpagesize
 #endif
 
+int mingw_fsync_no_flush(int fd);
+#define fsync_no_flush mingw_fsync_no_flush
+
 struct rlimit {
 	unsigned int rlim_cur;
 };
@@ -398,6 +401,8 @@ int mingw_fstat(int fd, struct stat *buf);
 
 int mingw_utime(const char *file_name, const struct utimbuf *times);
 #define utime mingw_utime
+int mingw_futimes(int fd, const struct timeval times[2]);
+#define futimes mingw_futimes
 size_t mingw_strftime(char *s, size_t max,
 		   const char *format, const struct tm *tm);
 #define strftime mingw_strftime

@@ -9,6 +9,8 @@
 #include "../config.h"
 #include "dir.h"
 
+#include "win32/ntifs.h"
+
 #define HCAST(type, handle) ((type)(intptr_t)handle)
 
 static const int delay[] = { 0, 1, 10, 20, 40 };
@@ -949,19 +951,40 @@ int mingw_fstat(int fd, struct stat *buf)
 	}
 }
 
-static inline void time_t_to_filetime(time_t t, FILETIME *ft)
+static inline void timeval_to_filetime(const struct timeval *t, FILETIME *ft)
 {
-	long long winTime = t * 10000000LL + 116444736000000000LL;
+	long long winTime = t->tv_sec * 10000000LL + t->tv_usec * 10 + 116444736000000000LL;
 	ft->dwLowDateTime = winTime;
 	ft->dwHighDateTime = winTime >> 32;
 }
 
-int mingw_utime (const char *file_name, const struct utimbuf *times)
+int mingw_futimes(int fd, const struct timeval times[2])
 {
 	FILETIME mft, aft;
+
+	if (times) {
+		timeval_to_filetime(&times[0], &aft);
+		timeval_to_filetime(&times[1], &mft);
+	} else {
+		GetSystemTimeAsFileTime(&mft);
+		aft = mft;
+	}
+
+	if (!SetFileTime((HANDLE)_get_osfhandle(fd), NULL, &aft, &mft)) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	return 0;
+}
+
+int mingw_utime (const char *file_name, const struct utimbuf *times)
+{
 	int fh, rc;
 	DWORD attrs;
 	wchar_t wfilename[MAX_PATH];
+	struct timeval tvs[2];
+
 	if (xutftowcs_path(wfilename, file_name) < 0)
 		return -1;
 
@@ -979,22 +1002,17 @@ int mingw_utime (const char *file_name, const struct utimbuf *times)
 	}
 
 	if (times) {
-		time_t_to_filetime(times->modtime, &mft);
-		time_t_to_filetime(times->actime, &aft);
-	} else {
-		GetSystemTimeAsFileTime(&mft);
-		aft = mft;
+		memset(tvs, 0, sizeof(tvs));
+		tvs[0].tv_sec = times->actime;
+		tvs[1].tv_sec = times->modtime;
 	}
-	if (!SetFileTime((HANDLE)_get_osfhandle(fh), NULL, &aft, &mft)) {
-		errno = EINVAL;
-		rc = -1;
-	} else
-		rc = 0;
+
+	rc = mingw_futimes(fh, times ? tvs : NULL);
 	close(fh);
 
 revert_attrs:
 	if (attrs != INVALID_FILE_ATTRIBUTES &&
-	    (attrs & FILE_ATTRIBUTE_READONLY)) {
+		(attrs & FILE_ATTRIBUTE_READONLY)) {
 		/* ignore errors again */
 		SetFileAttributesW(wfilename, attrs);
 	}
@@ -2161,6 +2179,28 @@ repeat:
 
 	errno = EACCES;
 	return -1;
+}
+
+int mingw_fsync_no_flush(int fd)
+{
+	IO_STATUS_BLOCK io_status;
+
+#define FLUSH_FLAGS_FILE_DATA_ONLY 1
+
+	DECLARE_PROC_ADDR(ntdll.dll, NTSTATUS, NtFlushBuffersFileEx,
+					  HANDLE FileHandle, ULONG Flags, PVOID Parameters, ULONG ParameterSize,
+					  PIO_STATUS_BLOCK IoStatusBlock);
+
+	if (!INIT_PROC_ADDR(NtFlushBuffersFileEx))
+		return -1;
+
+	/* See https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntflushbuffersfileex */
+	memset(&io_status, 0, sizeof(io_status));
+	if (NtFlushBuffersFileEx((HANDLE)_get_osfhandle(fd), FLUSH_FLAGS_FILE_DATA_ONLY,
+							 NULL, 0, &io_status))
+		return -1;
+
+	return 0;
 }
 
 /*

@@ -1860,12 +1860,17 @@ int hash_object_file(const struct git_hash_algo *algo, const void *buf,
 }
 
 /* Finalize a file on disk, and close it. */
-static void close_loose_object(int fd)
+static int close_loose_object(int fd, const char *tmpfile, const char *filename, time_t mtime)
 {
-	if (fsync_object_files)
-		fsync_or_die(fd, "loose object file");
-	if (close(fd) != 0)
-		die_errno(_("error when closing loose object file"));
+    if (mtime) {
+		struct timeval tvs[2] = {0};
+		tvs[0].tv_sec = mtime;
+		tvs[1].tv_sec = mtime;
+		if (futimes(fd, tvs))
+			warning_errno(_("failed futimes() on %s"), tmpfile);
+	}
+
+	return fsync_and_close_loose_object_bulk_checkin(fd, tmpfile, filename);
 }
 
 /* Size of directory component, including the ending '/' */
@@ -1913,12 +1918,13 @@ static int create_tmpfile(struct strbuf *tmp, const char *filename)
 	return fd;
 }
 
+static unsigned char compression_buffer[128 * 1024];
+
 static int write_loose_object(const struct object_id *oid, char *hdr,
 			      int hdrlen, const void *buf, unsigned long len,
 			      time_t mtime)
 {
 	int fd, ret;
-	unsigned char compressed[4096];
 	git_zstream stream;
 	git_hash_ctx c;
 	struct object_id parano_oid;
@@ -1937,8 +1943,8 @@ static int write_loose_object(const struct object_id *oid, char *hdr,
 
 	/* Set it up */
 	git_deflate_init(&stream, zlib_compression_level);
-	stream.next_out = compressed;
-	stream.avail_out = sizeof(compressed);
+	stream.next_out = compression_buffer;
+	stream.avail_out = sizeof(compression_buffer);
 	the_hash_algo->init_fn(&c);
 
 	/* First header.. */
@@ -1955,10 +1961,10 @@ static int write_loose_object(const struct object_id *oid, char *hdr,
 		unsigned char *in0 = stream.next_in;
 		ret = git_deflate(&stream, Z_FINISH);
 		the_hash_algo->update_fn(&c, in0, stream.next_in - in0);
-		if (write_buffer(fd, compressed, stream.next_out - compressed) < 0)
+		if (write_buffer(fd, compression_buffer, stream.next_out - compression_buffer) < 0)
 			die(_("unable to write loose object file"));
-		stream.next_out = compressed;
-		stream.avail_out = sizeof(compressed);
+		stream.next_out = compression_buffer;
+		stream.avail_out = sizeof(compression_buffer);
 	} while (ret == Z_OK);
 
 	if (ret != Z_STREAM_END)
@@ -1973,17 +1979,7 @@ static int write_loose_object(const struct object_id *oid, char *hdr,
 		die(_("confused by unstable object source data for %s"),
 		    oid_to_hex(oid));
 
-	close_loose_object(fd);
-
-	if (mtime) {
-		struct utimbuf utb;
-		utb.actime = mtime;
-		utb.modtime = mtime;
-		if (utime(tmp_file.buf, &utb) < 0)
-			warning_errno(_("failed utime() on %s"), tmp_file.buf);
-	}
-
-	return finalize_object_file(tmp_file.buf, filename.buf);
+	return close_loose_object(fd, tmp_file.buf, filename.buf, mtime);
 }
 
 static int freshen_loose_object(const struct object_id *oid)

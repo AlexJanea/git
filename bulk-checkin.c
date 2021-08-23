@@ -3,12 +3,18 @@
  */
 #include "cache.h"
 #include "bulk-checkin.h"
+#include "lockfile.h"
 #include "repository.h"
 #include "csum-file.h"
 #include "pack.h"
 #include "strbuf.h"
 #include "packfile.h"
 #include "object-store.h"
+
+struct object_rename {
+	char *src;
+	char *dst;
+};
 
 static struct bulk_checkin_state {
 	unsigned plugged:1;
@@ -21,6 +27,11 @@ static struct bulk_checkin_state {
 	struct pack_idx_entry **written;
 	uint32_t alloc_written;
 	uint32_t nr_written;
+
+	struct object_rename *renames;
+	uint32_t alloc_renames;
+	uint32_t nr_renames;
+
 } state;
 
 static void finish_bulk_checkin(struct bulk_checkin_state *state)
@@ -60,6 +71,35 @@ clear_exit:
 	strbuf_release(&packname);
 	/* Make objects we just wrote available to ourselves */
 	reprepare_packed_git(the_repository);
+}
+
+static void do_deferred_sync_and_rename(struct bulk_checkin_state *state,
+										struct lock_file *lock_file)
+{
+	if (state->nr_renames) {
+		int i;
+
+		/*
+		 * Issue a full hardware flush against the lock file to ensure
+		 * that all objects are durable before any renames occur.
+		 * The code in fsync_and_close_loose_object_bulk_checkin has
+		 * already ensured that writeout has occurred, but it has not
+		 * flushed any writeback cache in the storage hardware.
+		 */
+		fsync_or_die(get_lock_file_fd(lock_file), get_lock_file_path(lock_file));
+
+		for (i = 0; i < state->nr_renames; i++) {
+			if (finalize_object_file(state->renames[i].src, state->renames[i].dst))
+				die_errno(_("could not rename '%s'"), state->renames[i].src);
+
+			free(state->renames[i].src);
+			free(state->renames[i].dst);
+		}
+
+		free(state->renames);
+		state->renames = NULL;
+		state->nr_renames = state->alloc_renames = 0;
+	}
 }
 
 static int already_written(struct bulk_checkin_state *state, struct object_id *oid)
@@ -256,6 +296,47 @@ static int deflate_to_pack(struct bulk_checkin_state *state,
 	return 0;
 }
 
+static void add_rename_bulk_checkin(struct bulk_checkin_state *state,
+				    const char *src, const char *dst)
+{
+	struct object_rename *rename;
+
+	ALLOC_GROW(state->renames, state->nr_renames + 1, state->alloc_renames);
+
+	rename = &state->renames[state->nr_renames++];
+	rename->src = xstrdup(src);
+	rename->dst = xstrdup(dst);
+}
+
+int fsync_and_close_loose_object_bulk_checkin(int fd, const char *tmpfile,
+					      const char *filename)
+{
+	if (fsync_object_files) {
+		/*
+		 * If we have a plugged bulk checkin, we issue a call that
+		 * cleans the filesystem page cache but avoids a hardware flush
+		 * command. Later on we will issue a single hardware flush
+		 * before renaming files as part of do_deferred_sync_and_rename.
+		 */
+		if (state.plugged &&
+			fsync_object_files == 2 &&
+			!git_fsync(fd, FSYNC_WRITEOUT_ONLY)) {
+			add_rename_bulk_checkin(&state, tmpfile, filename);
+			if (close(fd))
+				die_errno(_("error when closing loose object file"));
+
+			return 0;
+
+		} else
+			fsync_or_die(fd, "loose object file");
+	}
+
+	if (close(fd))
+	    die_errno(_("error when closing loose object file"));
+
+	return finalize_object_file(tmpfile, filename);
+}
+
 int index_bulk_checkin(struct object_id *oid,
 		       int fd, size_t size, enum object_type type,
 		       const char *path, unsigned flags)
@@ -272,9 +353,11 @@ void plug_bulk_checkin(void)
 	state.plugged = 1;
 }
 
-void unplug_bulk_checkin(void)
+void unplug_bulk_checkin(struct lock_file *lock_file)
 {
 	state.plugged = 0;
-	if (state.f)
+    if (state.f)
 		finish_bulk_checkin(&state);
+
+	do_deferred_sync_and_rename(&state, lock_file);
 }

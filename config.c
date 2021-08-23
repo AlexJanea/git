@@ -1509,7 +1509,9 @@ static int git_default_core_config(const char *var, const char *value, void *cb)
 	}
 
 	if (!strcmp(var, "core.fsyncobjectfiles")) {
-		fsync_object_files = git_config_bool(var, value);
+        int is_bool;
+
+		fsync_object_files = git_config_bool_or_int(var, value, &is_bool);
 		return 0;
 	}
 
