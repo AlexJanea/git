@@ -734,11 +734,14 @@ int mingw_chmod(const char *filename, int mode)
  * The unit of FILETIME is 100-nanoseconds since January 1, 1601, UTC.
  * Returns the 100-nanoseconds ("hekto nanoseconds") since the epoch.
  */
+
+#define UNIX_EPOCH_FILETIME 116444736000000000LL
+
 static inline long long filetime_to_hnsec(const FILETIME *ft)
 {
 	long long winTime = ((long long)ft->dwHighDateTime << 32) + ft->dwLowDateTime;
 	/* Windows to Unix Epoch conversion */
-	return winTime - 116444736000000000LL;
+	return winTime - UNIX_EPOCH_FILETIME;
 }
 
 static inline void filetime_to_timespec(const FILETIME *ft, struct timespec *ts)
@@ -746,6 +749,13 @@ static inline void filetime_to_timespec(const FILETIME *ft, struct timespec *ts)
 	long long hnsec = filetime_to_hnsec(ft);
 	ts->tv_sec = (time_t)(hnsec / 10000000);
 	ts->tv_nsec = (hnsec % 10000000) * 100;
+}
+
+static inline void timespec_to_filetime(const struct timespec *t, FILETIME *ft)
+{
+	long long winTime = t->tv_sec * 10000000LL + t->tv_nsec / 100 + UNIX_EPOCH_FILETIME;
+	ft->dwLowDateTime = winTime;
+	ft->dwHighDateTime = winTime >> 32;
 }
 
 /**
@@ -949,19 +959,33 @@ int mingw_fstat(int fd, struct stat *buf)
 	}
 }
 
-static inline void time_t_to_filetime(time_t t, FILETIME *ft)
-{
-	long long winTime = t * 10000000LL + 116444736000000000LL;
-	ft->dwLowDateTime = winTime;
-	ft->dwHighDateTime = winTime >> 32;
-}
-
-int mingw_utime (const char *file_name, const struct utimbuf *times)
+int mingw_futimens(int fd, const struct timespec times[2])
 {
 	FILETIME mft, aft;
+
+	if (times) {
+		timespec_to_filetime(&times[0], &aft);
+		timespec_to_filetime(&times[1], &mft);
+	} else {
+		GetSystemTimeAsFileTime(&mft);
+		aft = mft;
+	}
+
+	if (!SetFileTime((HANDLE)_get_osfhandle(fd), NULL, &aft, &mft)) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	return 0;
+}
+
+int mingw_utime(const char *file_name, const struct utimbuf *times)
+{
 	int fh, rc;
 	DWORD attrs;
 	wchar_t wfilename[MAX_PATH];
+	struct timespec ts[2];
+
 	if (xutftowcs_path(wfilename, file_name) < 0)
 		return -1;
 
@@ -979,17 +1003,12 @@ int mingw_utime (const char *file_name, const struct utimbuf *times)
 	}
 
 	if (times) {
-		time_t_to_filetime(times->modtime, &mft);
-		time_t_to_filetime(times->actime, &aft);
-	} else {
-		GetSystemTimeAsFileTime(&mft);
-		aft = mft;
+		memset(tvs, 0, sizeof(tvs));
+		ts[0].tv_sec = times->actime;
+		ts[1].tv_sec = times->modtime;
 	}
-	if (!SetFileTime((HANDLE)_get_osfhandle(fh), NULL, &aft, &mft)) {
-		errno = EINVAL;
-		rc = -1;
-	} else
-		rc = 0;
+
+	rc = mingw_futimens(fh, times ? ts : NULL);
 	close(fh);
 
 revert_attrs:
