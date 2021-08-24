@@ -1859,16 +1859,6 @@ int hash_object_file(const struct git_hash_algo *algo, const void *buf,
 	return 0;
 }
 
-/* Finalize a file on disk, and close it. */
-static int close_loose_object(int fd, const char *tmpfile, const char *filename)
-{
-	if (fsync_object_files)
-		fsync_or_die(fd, "loose object file");
-	if (close(fd) != 0)
-		die_errno(_("error when closing loose object file"));
-	return finalize_object_file(tmpfile, filename);
-}
-
 /* Size of directory component, including the ending '/' */
 static inline int directory_size(const char *filename)
 {
@@ -1982,7 +1972,7 @@ static int write_loose_object(const struct object_id *oid, char *hdr,
 			warning_errno(_("failed futimes() on %s"), tmp_file.buf);
 	}
 
-	return close_loose_object(fd, tmp_file.buf, filename.buf);
+	return fsync_and_close_loose_object_bulk_checkin(fd, tmp_file.buf, filename.buf);
 }
 
 static int freshen_loose_object(const struct object_id *oid)

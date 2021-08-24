@@ -1509,7 +1509,13 @@ static int git_default_core_config(const char *var, const char *value, void *cb)
 	}
 
 	if (!strcmp(var, "core.fsyncobjectfiles")) {
-		fsync_object_files = git_config_bool(var, value);
+		if (!value)
+			return config_error_nonbool(var);
+		if (!strcasecmp(value, "batch"))
+			fsync_object_files = FSYNC_OBJECT_FILES_BATCH;
+		else
+			fsync_object_files = git_config_bool(var, value)
+				? FSYNC_OBJECT_FILES_ON : FSYNC_OBJECT_FILES_OFF;
 		return 0;
 	}
 

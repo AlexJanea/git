@@ -3,14 +3,18 @@
  */
 #include "cache.h"
 #include "bulk-checkin.h"
+#include "lockfile.h"
 #include "repository.h"
 #include "csum-file.h"
 #include "pack.h"
 #include "strbuf.h"
+#include "string-list.h"
 #include "packfile.h"
 #include "object-store.h"
 
 static int bulk_checkin_plugged;
+
+static struct string_list bulk_fsync_state = STRING_LIST_INIT_DUP;
 
 static struct bulk_checkin_state {
 	char *pack_tmp_name;
@@ -60,6 +64,32 @@ clear_exit:
 	strbuf_release(&packname);
 	/* Make objects we just wrote available to ourselves */
 	reprepare_packed_git(the_repository);
+}
+
+static void do_sync_and_rename(struct string_list *fsync_state, struct lock_file *lock_file)
+{
+	if (fsync_state->nr) {
+		struct string_list_item *rename;
+
+		/*
+		 * Issue a full hardware flush against the lock file to ensure
+		 * that all objects are durable before any renames occur.
+		 * The code in fsync_and_close_loose_object_bulk_checkin has
+		 * already ensured that writeout has occurred, but it has not
+		 * flushed any writeback cache in the storage hardware.
+		 */
+		fsync_or_die(get_lock_file_fd(lock_file), get_lock_file_path(lock_file));
+
+		for_each_string_list_item(rename, fsync_state) {
+			const char *src = rename->string;
+			const char *dst = rename->util;
+
+			if (finalize_object_file(src, dst))
+				die_errno(_("could not rename '%s' to '%s'"), src, dst);
+		}
+
+		string_list_clear(fsync_state, 1);
+	}
 }
 
 static int already_written(struct bulk_checkin_state *state, struct object_id *oid)
@@ -256,6 +286,42 @@ static int deflate_to_pack(struct bulk_checkin_state *state,
 	return 0;
 }
 
+static void add_rename_bulk_checkin(struct string_list *fsync_state,
+				    const char *src, const char *dst)
+{
+	string_list_insert(fsync_state, src)->util = xstrdup(dst);
+}
+
+int fsync_and_close_loose_object_bulk_checkin(int fd, const char *tmpfile,
+					      const char *filename)
+{
+	if (fsync_object_files != FSYNC_OBJECT_FILES_OFF) {
+		/*
+		 * If we have a plugged bulk checkin, we issue a call that
+		 * cleans the filesystem page cache but avoids a hardware flush
+		 * command. Later on we will issue a single hardware flush
+		 * before renaming files as part of do_sync_and_rename.
+		 */
+		if (bulk_checkin_plugged &&
+		    fsync_object_files == FSYNC_OBJECT_FILES_BATCH &&
+		    git_fsync(fd, FSYNC_WRITEOUT_ONLY) >= 0) {
+			add_rename_bulk_checkin(&bulk_fsync_state, tmpfile, filename);
+			if (close(fd))
+				die_errno(_("error when closing loose object file"));
+
+			return 0;
+
+		} else {
+			fsync_or_die(fd, "loose object file");
+		}
+	}
+
+	if (close(fd))
+		die_errno(_("error when closing loose object file"));
+
+	return finalize_object_file(tmpfile, filename);
+}
+
 int index_bulk_checkin(struct object_id *oid,
 		       int fd, size_t size, enum object_type type,
 		       const char *path, unsigned flags)
@@ -273,10 +339,12 @@ void plug_bulk_checkin(void)
 	bulk_checkin_plugged = 1;
 }
 
-void unplug_bulk_checkin(void)
+void unplug_bulk_checkin(struct lock_file *lock_file)
 {
 	assert(bulk_checkin_plugged);
 	bulk_checkin_plugged = 0;
 	if (bulk_checkin_state.f)
 		finish_bulk_checkin(&bulk_checkin_state);
+
+	do_sync_and_rename(&bulk_fsync_state, lock_file);
 }
