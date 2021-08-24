@@ -750,6 +750,60 @@ void add_to_alternates_memory(const char *reference)
 			     '\n', NULL, 0);
 }
 
+struct object_directory *set_temporary_current_odb(const char *dir)
+{
+	struct object_directory *main_odb, *new_odb, *old_next;
+
+	/*
+	 * Make sure alternates are initialized, or else our entry may be
+	 * overwritten when they are.
+	 */
+	prepare_alt_odb(the_repository);
+
+	/* Copy the existing object directory and make it an alternate. */
+	main_odb = the_repository->objects->odb;
+	new_odb = xmalloc(sizeof(*new_odb));
+	*new_odb = *main_odb;
+	*the_repository->objects->odb_tail = new_odb;
+	the_repository->objects->odb_tail = &(new_odb->next);
+	new_odb->next = NULL;
+
+	/*
+	 * Reinitialize the main odb with the specified path, being careful
+	 * to keep the next pointer value.
+	 */
+	old_next = main_odb->next;
+	memset(main_odb, 0, sizeof(*main_odb));
+	main_odb->next = old_next;
+	main_odb->is_temp = 1;
+	main_odb->path = xstrdup(dir);
+	return new_odb;
+}
+
+void restore_current_odb(struct object_directory *odb)
+{
+	struct object_directory **prev, *main_odb;
+
+	/* Unlink the saved previous main ODB from the list. */
+	prev = &the_repository->objects->odb->next;
+	assert(*prev);
+	while (*prev != odb) {
+		prev = &(*prev)->next;
+	}
+	*prev = odb->next;
+	if (*prev == NULL)
+		the_repository->objects->odb_tail = prev;
+
+	/*
+	 * Restore the data from the old main odb, being careful to
+	 * keep the next pointer value
+	 */
+	main_odb = the_repository->objects->odb;
+	SWAP(*main_odb, *odb);
+	main_odb->next = odb->next;
+	free_object_directory(odb);
+}
+
 /*
  * Compute the exact path an alternate is at and returns it. In case of
  * error NULL is returned and the human readable error is added to `err`
@@ -1867,8 +1921,19 @@ int hash_object_file(const struct git_hash_algo *algo, const void *buf,
 /* Finalize a file on disk, and close it. */
 static void close_loose_object(int fd)
 {
-	if (fsync_object_files)
+	switch (fsync_object_files) {
+	case FSYNC_OBJECT_FILES_OFF:
+		break;
+	case FSYNC_OBJECT_FILES_ON:
 		fsync_or_die(fd, "loose object file");
+		break;
+	case FSYNC_OBJECT_FILES_BATCH:
+		fsync_loose_object_bulk_checkin(fd);
+		break;
+	default:
+		BUG("Invalid fsync_object_files mode.");
+	}
+
 	if (close(fd) != 0)
 		die_errno(_("error when closing loose object file"));
 }

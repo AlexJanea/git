@@ -11,6 +11,7 @@
 struct tmp_objdir {
 	struct strbuf path;
 	struct strvec env;
+	struct object_directory *prev_odb;
 };
 
 /*
@@ -50,8 +51,12 @@ static int tmp_objdir_destroy_1(struct tmp_objdir *t, int on_signal)
 	 * freeing memory; it may cause a deadlock if the signal
 	 * arrived while libc's allocator lock is held.
 	 */
-	if (!on_signal)
+	if (!on_signal) {
+		if (t->prev_odb)
+			restore_current_odb(t->prev_odb);
 		tmp_objdir_free(t);
+	}
+
 	return err;
 }
 
@@ -132,6 +137,7 @@ struct tmp_objdir *tmp_objdir_create(void)
 	t = xmalloc(sizeof(*t));
 	strbuf_init(&t->path, 0);
 	strvec_init(&t->env);
+	t->prev_odb = NULL;
 
 	strbuf_addf(&t->path, "%s/incoming-XXXXXX", get_object_directory());
 
@@ -291,4 +297,11 @@ const char **tmp_objdir_env(const struct tmp_objdir *t)
 void tmp_objdir_add_as_alternate(const struct tmp_objdir *t)
 {
 	add_to_alternates_memory(t->path.buf);
+}
+
+void tmp_objdir_replace_current_odb(struct tmp_objdir *t)
+{
+	if (t->prev_odb)
+		BUG("the main object database is already replaced");
+	t->prev_odb = set_temporary_current_odb(t->path.buf);
 }
