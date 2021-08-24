@@ -610,7 +610,8 @@ int cmd_add(int argc, const char **argv, const char *prefix)
 
 	if (chmod_arg && pathspec.nr)
 		chmod_pathspec(&pathspec, chmod_arg[0]);
-	unplug_bulk_checkin();
+
+	unplug_bulk_checkin(&lock_file);
 
 finish:
 	if (write_locked_index(&the_index, &lock_file,

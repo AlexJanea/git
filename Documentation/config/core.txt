@@ -548,12 +548,17 @@ core.whitespace::
   errors. The default tab width is 8. Allowed values are 1 to 63.
 
 core.fsyncObjectFiles::
-	This boolean will enable 'fsync()' when writing object files.
+	A boolean value or the number '2', indicating the level of durability
+	applied to object files.
 +
-This is a total waste of time and effort on a filesystem that orders
-data writes properly, but can be useful for filesystems that do not use
-journalling (traditional UNIX filesystems) or that only journal metadata
-and not file contents (OS X's HFS+, or Linux ext3 with "data=writeback").
+This setting controls how much effort Git makes to ensure that data added to
+the object store are durable in the case of an unclean system shutdown. If
+'false', Git allows data to remain in file system caches according to operating
+system policy, whence they may be lost if the system loses power or crashes. A
+value of 'true' instructs Git to force objects to stable storage immediately
+when they are added to the object store. The number '2' is an experimental
+value that also preserves durability but tries to perform hardware flushes in a
+batch.
 
 core.preloadIndex::
 	Enable parallel index preload for operations like 'git diff'

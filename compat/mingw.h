@@ -397,6 +397,8 @@ int mingw_fstat(int fd, struct stat *buf);
 
 int mingw_utime(const char *file_name, const struct utimbuf *times);
 #define utime mingw_utime
+int mingw_futimes(int fd, const struct timeval times[2]);
+#define futimes mingw_futimes
 size_t mingw_strftime(char *s, size_t max,
 		   const char *format, const struct tm *tm);
 #define strftime mingw_strftime
