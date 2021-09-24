@@ -41,7 +41,7 @@ test_expect_success 'git add: core.fsyncobjectfiles=batch' "
 	rm -f fsynced_files &&
 	git ls-files --stage fsync-files/ > fsynced_files &&
 	test_line_count = 8 fsynced_files &&
-	cat fsynced_files | awk '{print \$2}' | xargs -n1 git cat-file -e
+	awk -- '{print \$2}' fsynced_files | xargs -n1 git cat-file -e
 "
 
 test_expect_success \
