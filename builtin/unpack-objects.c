@@ -154,6 +154,8 @@ static void add_delta_to_list(unsigned nr, const struct object_id *base_oid,
 	info->nr = nr;
 	info->next = delta_list;
 	delta_list = info;
+	printf("Adding delta for base_oid=%s (nr=%d base_offset=%lu size=%lu)\n",
+	       oid_to_hex(base_oid), nr, base_offset, size);
 }
 
 struct obj_info {
@@ -307,9 +309,15 @@ static void added_object(unsigned nr, enum object_type type,
 	struct delta_info **p = &delta_list;
 	struct delta_info *info;
 
+	printf("Resolving object %s (nr=%d, offset=%lu, size=%lu)...\n",
+	       oid_to_hex(&obj_list[nr].oid), nr, obj_list[nr].offset, size);
+
 	while ((info = *p) != NULL) {
 		if (oideq(&info->base_oid, &obj_list[nr].oid) ||
 		    info->base_offset == obj_list[nr].offset) {
+			printf("\tresolved base_oid=%s (nr=%d base_offset=%ld)\n",
+			       oid_to_hex(&info->base_oid), info->nr, info->base_offset);
+
 			*p = info->next;
 			p = &delta_list;
 			resolve_delta(info->nr, type, data, size,
@@ -467,6 +475,10 @@ static void unpack_one(unsigned nr)
 		shift += 7;
 	}
 
+	printf("unpack_one: nr=%d offset=%lu size=%lu type=%u\n",
+		nr, obj_list[nr].offset, size, type);
+	     
+
 	switch (type) {
 	case OBJ_COMMIT:
 	case OBJ_TREE:
@@ -512,8 +524,15 @@ static void unpack_all(void)
 	unplug_bulk_checkin();
 	stop_progress(&progress);
 
-	if (delta_list)
+	if (delta_list) {
+		struct delta_info *p = delta_list;
+		while (p) {
+			printf("Unresolved delta %s (nr=%d, offset=%lu, size=%lu)\n",
+			       oid_to_hex(&p->base_oid), p->nr, p->base_offset, p->size);
+			p = p->next;
+		}
 		die("unresolved deltas left after unpacking");
+	}
 }
 
 int cmd_unpack_objects(int argc, const char **argv, const char *prefix)
