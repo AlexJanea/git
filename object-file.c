@@ -1894,6 +1894,8 @@ static void close_loose_object(int fd)
 
 	if (fsync_object_files > 0)
 		fsync_or_die(fd, "loose object file");
+	else if (batch_fsync_enabled(FSYNC_COMPONENT_LOOSE_OBJECT))
+		fsync_loose_object_bulk_checkin(fd);
 	else
 		fsync_component_or_die(FSYNC_COMPONENT_LOOSE_OBJECT, fd,
 				       "loose object file");
