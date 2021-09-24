@@ -98,8 +98,8 @@ test_perf_create_repo_from () {
 	mkdir -p "$repo/.git"
 	(
 		cd "$source" &&
-		{ cp -Rl "$objects_dir" "$repo/.git/" 2>/dev/null ||
-			cp -R "$objects_dir" "$repo/.git/"; } &&
+		{ cp -Rl "$objects_dir" "$repo/.git/" ||
+			cp -R "$objects_dir" "$repo/.git/" 2>/dev/null;} &&
 
 		# common_dir must come first here, since we want source_git to
 		# take precedence and overwrite any overlapping files
