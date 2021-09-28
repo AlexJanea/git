@@ -320,7 +320,7 @@ struct rev_info {
 	unsigned keep_pack_cache_flags;
 
 	/* Location where temporary objects for remerge-diff are written. */
-	struct strbuf remerge_objdir_location;
+	struct tmp_objdir *remerge_objdir;
 };
 
 int ref_excluded(struct string_list *, const char *path);

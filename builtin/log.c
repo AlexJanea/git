@@ -53,7 +53,6 @@ static int default_encode_email_headers = 1;
 static int decoration_style;
 static int decoration_given;
 static int use_mailmap_config = 1;
-static struct tmp_objdir *tmp_objdir;
 static const char *fmt_patch_subject_prefix = "PATCH";
 static int fmt_patch_name_max = FORMAT_PATCH_NAME_MAX_DEFAULT;
 static const char *fmt_pretty;
@@ -411,14 +410,10 @@ static int cmd_log_walk(struct rev_info *rev)
 	int saved_dcctc = 0;
 
 	if (rev->remerge_diff) {
-		tmp_objdir = tmp_objdir_create();
-		if (!tmp_objdir)
+		rev->remerge_objdir = tmp_objdir_create("remerge-diff");
+		if (!rev->remerge_objdir)
 			die(_("unable to create temporary object directory"));
-		tmp_objdir_make_primary(the_repository, tmp_objdir);
-
-		strbuf_init(&rev->remerge_objdir_location, 0);
-		strbuf_addstr(&rev->remerge_objdir_location,
-			      tmp_objdir_path(tmp_objdir));
+		tmp_objdir_replace_primary_odb(rev->remerge_objdir, 1);
 	}
 
 	if (rev->early_output)
@@ -464,10 +459,8 @@ static int cmd_log_walk(struct rev_info *rev)
 	diff_free(&rev->diffopt);
 
 	if (rev->remerge_diff) {
-		strbuf_release(&rev->remerge_objdir_location);
-		tmp_objdir_remove_as_primary(the_repository, tmp_objdir);
-		tmp_objdir_destroy(tmp_objdir);
-		tmp_objdir = NULL;
+		tmp_objdir_destroy(rev->remerge_objdir);
+		rev->remerge_objdir = NULL;
 	}
 
 	if (rev->diffopt.output_format & DIFF_FORMAT_CHECKDIFF &&

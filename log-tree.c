@@ -4,6 +4,7 @@
 #include "diff.h"
 #include "object-store.h"
 #include "repository.h"
+#include "tmp-objdir.h"
 #include "commit.h"
 #include "tag.h"
 #include "graph.h"
@@ -949,10 +950,8 @@ static int do_remerge_diff(struct rev_info *opt,
 	merge_finalize(&o, &res);
 
 	/* Clean up the temporary object directory */
-	if (opt->remerge_objdir_location.buf != NULL &&
-	    *opt->remerge_objdir_location.buf != '\0')
-		remove_dir_recursively(&opt->remerge_objdir_location,
-				       REMOVE_DIR_KEEP_TOPLEVEL);
+	if (opt->remerge_objdir != NULL)
+		tmp_objdir_discard_contents(opt->remerge_objdir);
 	else
 		BUG("unable to remove temporary object directory");
 
