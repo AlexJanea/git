@@ -2073,7 +2073,7 @@ test_expect_success '--show-scope with --show-origin' '
 '
 
 test_expect_success 'override global and system config' '
-	test_when_finished rm -f "$HOME"/.config/git &&
+	test_when_finished rm -rf "$HOME"/.config/git &&
 
 	cat >"$HOME"/.gitconfig <<-EOF &&
 	[home]
