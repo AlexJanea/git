@@ -547,6 +547,15 @@ core.whitespace::
   is relevant for `indent-with-non-tab` and when Git fixes `tab-in-indent`
   errors. The default tab width is 8. Allowed values are 1 to 63.
 
+core.fsyncMethod::
+	A value indicating the strategy Git will use to harden repository data
+	using fsync and related primitives.
++
+* `fsync` uses the fsync() system call or platform equivalents.
+* `writeout-only` issues requests to send the writes to the storage
+  hardware, but does not send any FLUSH CACHE request. If the operating system
+  does not support the required interfaces, this falls back to fsync().
+
 core.fsyncObjectFiles::
 	This boolean will enable 'fsync()' when writing object files.
 +
