@@ -985,7 +985,40 @@ void reset_shared_repository(void);
 extern int read_replace_refs;
 extern char *git_replace_ref_base;
 
-extern int fsync_object_files;
+/*
+ * These values are used to help identify parts of a repository to fsync.
+ * REPO_COMPONENT_NONE identifies data that will not be a persistent part of the
+ * repository and so shouldn't be fsynced.
+ */
+enum repo_component {
+	REPO_COMPONENT_NONE			= 0,
+	REPO_COMPONENT_LOOSE_OBJECT		= 1 << 0,
+	REPO_COMPONENT_PACK			= 1 << 1,
+	REPO_COMPONENT_PACK_METADATA		= 1 << 2,
+	REPO_COMPONENT_COMMIT_GRAPH		= 1 << 3,
+	REPO_COMPONENT_INDEX			= 1 << 4,
+};
+
+#define FSYNC_COMPONENTS_DEFAULT (REPO_COMPONENT_PACK | \
+				  REPO_COMPONENT_PACK_METADATA | \
+				  REPO_COMPONENT_COMMIT_GRAPH)
+
+#define FSYNC_COMPONENTS_OBJECTS (REPO_COMPONENT_LOOSE_OBJECT | \
+				  REPO_COMPONENT_PACK | \
+				  REPO_COMPONENT_PACK_METADATA | \
+				  REPO_COMPONENT_COMMIT_GRAPH)
+
+#define FSYNC_COMPONENTS_ALL (REPO_COMPONENT_LOOSE_OBJECT | \
+			      REPO_COMPONENT_PACK | \
+			      REPO_COMPONENT_PACK_METADATA | \
+			      REPO_COMPONENT_COMMIT_GRAPH | \
+			      REPO_COMPONENT_INDEX)
+
+
+/*
+ * A bitmask indicating which components of the repo should be fsynced.
+ */
+extern enum repo_component fsync_components;
 
 enum fsync_method {
 	FSYNC_METHOD_FSYNC,
@@ -1746,6 +1779,12 @@ int copy_file_with_time(const char *dst, const char *src, int mode);
 
 void write_or_die(int fd, const void *buf, size_t count);
 void fsync_or_die(int fd, const char *);
+
+inline void fsync_component_or_die(enum repo_component component, int fd, const char *msg)
+{
+	if (fsync_components & component)
+		fsync_or_die(fd, msg);
+}
 
 ssize_t read_in_full(int fd, void *buf, size_t count);
 ssize_t write_in_full(int fd, const void *buf, size_t count);

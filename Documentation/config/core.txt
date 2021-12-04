@@ -547,6 +547,26 @@ core.whitespace::
   is relevant for `indent-with-non-tab` and when Git fixes `tab-in-indent`
   errors. The default tab width is 8. Allowed values are 1 to 63.
 
+core.fsync::
+	A comma-separated list of parts of the repository which should be
+	hardened via the core.fsyncMethod when created or modified. You can
+	disable hardening of any component by prefixing it with a '-'. Later
+	items take precedence over earlier ones in the list. For example,
+	`core.fsync=all,-index` means "harden everything except the index".
+	Items that are not hardened may be lost in the event of an unclean
+	system shutdown.
++
+* `none` disables fsync completely. This must be specified alone.
+* `loose-object` hardens objects added to the repo in loose-object form.
+* `pack` hardens objects added to the repo in packfile form.
+* `pack-metadata` hardens packfile bitmaps and indexes.
+* `commit-graph` hardens the commit graph file.
+* `index` hardens the index when it is modified.
+* `objects` is an aggregate option that includes `loose-objects`, `pack`,
+  `pack-metadata`, and `commit-graph`.
+* `default` is an aggregate option that is equivalent to `objects,-loose-object`
+* `all` is an aggregate option that syncs all individual components above.
+
 core.fsyncMethod::
 	A value indicating the strategy Git will use to harden repository data
 	using fsync and related primitives.
@@ -555,14 +575,6 @@ core.fsyncMethod::
 * `writeout-only` issues requests to send the writes to the storage
   hardware, but does not send any FLUSH CACHE request. If the operating system
   does not support the required interfaces, this falls back to fsync().
-
-core.fsyncObjectFiles::
-	This boolean will enable 'fsync()' when writing object files.
-+
-This is a total waste of time and effort on a filesystem that orders
-data writes properly, but can be useful for filesystems that do not use
-journalling (traditional UNIX filesystems) or that only journal metadata
-and not file contents (OS X's HFS+, or Linux ext3 with "data=writeback").
 
 core.preloadIndex::
 	Enable parallel index preload for operations like 'git diff'
