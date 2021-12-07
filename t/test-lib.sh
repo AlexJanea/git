@@ -489,6 +489,11 @@ then
 	export GIT_PERL_FATAL_WARNINGS
 fi
 
+if test -n "$GIT_TEST_ENV_SCRIPT"
+then
+	. $GIT_TEST_ENV_SCRIPT
+fi
+
 # Add libc MALLOC and MALLOC_PERTURB test
 # only if we are not executing the test with valgrind
 if test -n "$valgrind" ||
