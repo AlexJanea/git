@@ -1237,6 +1237,13 @@ int cmd_update_index(int argc, const char **argv, const char *prefix)
 
 	if (fsmonitor > 0) {
 		enum fsmonitor_mode fsm_mode = fsm_settings__get_mode(r);
+
+		if (fsm_mode == FSMONITOR_MODE_INCOMPATIBLE) {
+			const char *msg = fsm_settings__get_reason_msg(r);
+
+			return error("%s '%s'", msg ? msg : "???", xgetcwd());
+		}
+
 		if (fsm_mode == FSMONITOR_MODE_DISABLED) {
 			advise(_("core.fsmonitor is unset; "
 				 "set it if you really want to "
