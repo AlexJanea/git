@@ -409,6 +409,8 @@ include::config/diff.txt[]
 
 include::config/difftool.txt[]
 
+include::config/editor.txt[]
+
 include::config/extensions.txt[]
 
 include::config/fastimport.txt[]
@@ -502,6 +504,8 @@ include::config/sendemail.txt[]
 include::config/sequencer.txt[]
 
 include::config/showbranch.txt[]
+
+include::config/sparse.txt[]
 
 include::config/splitindex.txt[]
 

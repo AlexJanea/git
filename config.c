@@ -1748,6 +1748,17 @@ static int git_default_core_config(const char *var, const char *value, void *cb)
 	return platform_core_config(var, value, cb);
 }
 
+static int git_default_sparse_config(const char *var, const char *value)
+{
+	if (!strcmp(var, "sparse.expectfilesoutsideofpatterns")) {
+		sparse_expect_files_outside_of_patterns = git_config_bool(var, value);
+		return 0;
+	}
+
+	/* Add other config variables here and to Documentation/config/sparse.txt. */
+	return 0;
+}
+
 static int git_default_i18n_config(const char *var, const char *value)
 {
 	if (!strcmp(var, "i18n.commitencoding"))
@@ -1768,6 +1779,9 @@ static int git_default_branch_config(const char *var, const char *value)
 			return 0;
 		} else if (value && !strcmp(value, "inherit")) {
 			git_branch_track = BRANCH_TRACK_INHERIT;
+			return 0;
+		} else if (value && !strcmp(value, "simple")) {
+			git_branch_track = BRANCH_TRACK_SIMPLE;
 			return 0;
 		}
 		git_branch_track = git_config_bool(var, value);
@@ -1878,6 +1892,9 @@ int git_default_config(const char *var, const char *value, void *cb)
 		pack_compression_seen = 1;
 		return 0;
 	}
+
+	if (starts_with(var, "sparse."))
+		return git_default_sparse_config(var, value);
 
 	/* Add other config variables here and to Documentation/config.txt. */
 	return 0;
@@ -2718,20 +2735,6 @@ int git_config_get_max_percent_split_change(void)
 	}
 
 	return -1; /* default value */
-}
-
-int git_config_get_fsmonitor(void)
-{
-	if (git_config_get_pathname("core.fsmonitor", &core_fsmonitor))
-		core_fsmonitor = getenv("GIT_TEST_FSMONITOR");
-
-	if (core_fsmonitor && !*core_fsmonitor)
-		core_fsmonitor = NULL;
-
-	if (core_fsmonitor)
-		return 1;
-
-	return 0;
 }
 
 int git_config_get_index_threads(int *dest)
