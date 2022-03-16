@@ -39,7 +39,7 @@ const char **tmp_objdir_env(const struct tmp_objdir *);
  * object database, removing the temporary directory, and freeing any
  * associated resources.
  */
-int tmp_objdir_migrate(struct tmp_objdir *);
+int tmp_objdir_migrate(struct tmp_objdir *, int do_fsync);
 
 /*
  * Destroy a temporary object directory, discarding any objects it contains.

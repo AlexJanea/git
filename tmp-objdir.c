@@ -231,9 +231,9 @@ static int read_dir_paths(struct string_list *out, const char *path)
 	return 0;
 }
 
-static int migrate_paths(struct strbuf *src, struct strbuf *dst);
+static int migrate_paths(struct strbuf *src, struct strbuf *dst, int needs_fsync);
 
-static int migrate_one(struct strbuf *src, struct strbuf *dst)
+static int migrate_one(struct strbuf *src, struct strbuf *dst, int needs_fsync)
 {
 	struct stat st;
 
@@ -245,12 +245,22 @@ static int migrate_one(struct strbuf *src, struct strbuf *dst)
 				return -1;
 		} else if (errno != EEXIST)
 			return -1;
-		return migrate_paths(src, dst);
+		return migrate_paths(src, dst, needs_fsync);
 	}
+
+	if (needs_fsync) {
+		int fd = git_open(src->buf);
+		if (fd >= 0) {
+			fsync(fd);
+			close(fd);
+		}
+	}
+
 	return finalize_object_file(src->buf, dst->buf);
 }
 
-static int migrate_paths(struct strbuf *src, struct strbuf *dst)
+static int migrate_paths(struct strbuf *src, struct strbuf *dst,
+		int needs_fsync)
 {
 	size_t src_len = src->len, dst_len = dst->len;
 	struct string_list paths = STRING_LIST_INIT_DUP;
@@ -268,7 +278,7 @@ static int migrate_paths(struct strbuf *src, struct strbuf *dst)
 		strbuf_addf(src, "/%s", name);
 		strbuf_addf(dst, "/%s", name);
 
-		ret |= migrate_one(src, dst);
+		ret |= migrate_one(src, dst, needs_fsync);
 
 		strbuf_setlen(src, src_len);
 		strbuf_setlen(dst, dst_len);
@@ -278,7 +288,7 @@ static int migrate_paths(struct strbuf *src, struct strbuf *dst)
 	return ret;
 }
 
-int tmp_objdir_migrate(struct tmp_objdir *t)
+int tmp_objdir_migrate(struct tmp_objdir *t, int needs_fsync)
 {
 	struct strbuf src = STRBUF_INIT, dst = STRBUF_INIT;
 	int ret;
@@ -296,7 +306,7 @@ int tmp_objdir_migrate(struct tmp_objdir *t)
 	strbuf_addbuf(&src, &t->path);
 	strbuf_addstr(&dst, get_object_directory());
 
-	ret = migrate_paths(&src, &dst);
+	ret = migrate_paths(&src, &dst, needs_fsync);
 
 	strbuf_release(&src);
 	strbuf_release(&dst);

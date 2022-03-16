@@ -31,7 +31,7 @@ then
 	GIT_PERF_REPEAT_COUNT=1
 fi
 
-for m in false true batch
+for m in false true batch batch-extra-fsync
 do
 	test_expect_success "create the files for object_fsyncing=$m" '
 		git reset --hard &&
@@ -48,6 +48,9 @@ do
 		;;
 	batch)
 		FSYNC_CONFIG='-c core.fsync=loose-object -c core.fsyncmethod=batch'
+		;;
+	batch-extra-fsync)
+		FSYNC_CONFIG='-c core.fsync=loose-object -c core.fsyncmethod=batch-extra-fsync'
 		;;
 	esac
 

@@ -91,6 +91,8 @@ clear_exit:
  */
 static void do_batch_fsync(void)
 {
+	int needs_fsync = needs_batch_fsync;
+
 	/*
 	 * Issue a full hardware flush against a temporary file to ensure
 	 * that all objects are durable before any renames occur.  The code in
@@ -99,7 +101,7 @@ static void do_batch_fsync(void)
 	 * hardware.
 	 */
 
-	if (needs_batch_fsync) {
+	if (needs_fsync) {
 		struct strbuf temp_path = STRBUF_INIT;
 		struct tempfile *temp;
 
@@ -108,10 +110,13 @@ static void do_batch_fsync(void)
 		fsync_or_die(get_tempfile_fd(temp), get_tempfile_path(temp));
 		delete_tempfile(&temp);
 		strbuf_release(&temp_path);
+		needs_batch_fsync = 0;
+		if (fsync_method != FSYNC_METHOD_BATCH_EXTRA_FSYNC)
+			needs_fsync = 0;
 	}
 
 	if (bulk_fsync_objdir) {
-		tmp_objdir_migrate(bulk_fsync_objdir);
+		tmp_objdir_migrate(bulk_fsync_objdir, needs_fsync);
 		bulk_fsync_objdir = NULL;
 	}
 }

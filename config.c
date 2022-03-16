@@ -1690,6 +1690,8 @@ static int git_default_core_config(const char *var, const char *value, void *cb)
 			fsync_method = FSYNC_METHOD_WRITEOUT_ONLY;
 		else if (!strcmp(value, "batch"))
 			fsync_method = FSYNC_METHOD_BATCH;
+		else if (!strcmp(value, "batch-extra-fsync"))
+			fsync_method = FSYNC_METHOD_BATCH_EXTRA_FSYNC;
 		else
 			warning(_("ignoring unknown core.fsyncMethod value '%s'"), value);
 

@@ -1045,7 +1045,8 @@ extern int use_fsync;
 enum fsync_method {
 	FSYNC_METHOD_FSYNC,
 	FSYNC_METHOD_WRITEOUT_ONLY,
-	FSYNC_METHOD_BATCH
+	FSYNC_METHOD_BATCH,
+	FSYNC_METHOD_BATCH_EXTRA_FSYNC
 };
 
 extern enum fsync_method fsync_method;
@@ -1773,7 +1774,9 @@ void fsync_component_or_die(enum fsync_component component, int fd, const char *
 
 static inline int batch_fsync_enabled(enum fsync_component component)
 {
-	return (fsync_components & component) && (fsync_method == FSYNC_METHOD_BATCH);
+	return (fsync_components & component) &&
+		(fsync_method >= FSYNC_METHOD_BATCH &&
+		 fsync_method <= FSYNC_METHOD_BATCH_EXTRA_FSYNC);
 }
 
 ssize_t read_in_full(int fd, void *buf, size_t count);
