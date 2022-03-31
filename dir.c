@@ -1218,24 +1218,24 @@ void add_patterns_from_file(struct dir_struct *dir, const char *fname)
 	add_patterns_from_file_1(dir, fname, NULL);
 }
 
-int match_basename(const char *basename, int basenamelen,
+int match_basename(const char *base_name, int basenamelen,
 		   const char *pattern, int prefix, int patternlen,
 		   unsigned flags)
 {
 	if (prefix == patternlen) {
 		if (patternlen == basenamelen &&
-		    !fspathncmp(pattern, basename, basenamelen))
+		    !fspathncmp(pattern, base_name, basenamelen))
 			return 1;
 	} else if (flags & PATTERN_FLAG_ENDSWITH) {
 		/* "*literal" matching against "fooliteral" */
 		if (patternlen - 1 <= basenamelen &&
 		    !fspathncmp(pattern + 1,
-				   basename + basenamelen - (patternlen - 1),
+				   base_name + basenamelen - (patternlen - 1),
 				   patternlen - 1))
 			return 1;
 	} else {
 		if (fnmatch_icase_mem(pattern, patternlen,
-				      basename, basenamelen,
+				      base_name, basenamelen,
 				      0) == 0)
 			return 1;
 	}
@@ -1309,7 +1309,7 @@ int match_pathname(const char *pathname, int pathlen,
  */
 static struct path_pattern *last_matching_pattern_from_list(const char *pathname,
 						       int pathlen,
-						       const char *basename,
+						       const char *base_name,
 						       int *dtype,
 						       struct pattern_list *pl,
 						       struct index_state *istate)
@@ -1332,8 +1332,8 @@ static struct path_pattern *last_matching_pattern_from_list(const char *pathname
 		}
 
 		if (pattern->flags & PATTERN_FLAG_NODIR) {
-			if (match_basename(basename,
-					   pathlen - (basename - pathname),
+			if (match_basename(base_name,
+					   pathlen - (base_name - pathname),
 					   exclude, prefix, pattern->patternlen,
 					   pattern->flags)) {
 				res = pattern;
@@ -1364,7 +1364,7 @@ static struct path_pattern *last_matching_pattern_from_list(const char *pathname
  */
 enum pattern_match_result path_matches_pattern_list(
 				const char *pathname, int pathlen,
-				const char *basename, int *dtype,
+				const char *base_name, int *dtype,
 				struct pattern_list *pl,
 				struct index_state *istate)
 {
@@ -1374,7 +1374,7 @@ enum pattern_match_result path_matches_pattern_list(
 	size_t slash_pos;
 
 	if (!pl->use_cone_patterns) {
-		pattern = last_matching_pattern_from_list(pathname, pathlen, basename,
+		pattern = last_matching_pattern_from_list(pathname, pathlen, base_name,
 							dtype, pl, istate);
 		if (pattern) {
 			if (pattern->flags & PATTERN_FLAG_NEGATIVE)
@@ -1510,7 +1510,7 @@ int path_in_cone_mode_sparse_checkout(const char *path,
 static struct path_pattern *last_matching_pattern_from_lists(
 		struct dir_struct *dir, struct index_state *istate,
 		const char *pathname, int pathlen,
-		const char *basename, int *dtype_p)
+		const char *base_name, int *dtype_p)
 {
 	int i, j;
 	struct exclude_list_group *group;
@@ -1519,7 +1519,7 @@ static struct path_pattern *last_matching_pattern_from_lists(
 		group = &dir->exclude_list_group[i];
 		for (j = group->nr - 1; j >= 0; j--) {
 			pattern = last_matching_pattern_from_list(
-				pathname, pathlen, basename, dtype_p,
+				pathname, pathlen, base_name, dtype_p,
 				&group->pl[j], istate);
 			if (pattern)
 				return pattern;
@@ -1696,16 +1696,16 @@ struct path_pattern *last_matching_pattern(struct dir_struct *dir,
 				      int *dtype_p)
 {
 	int pathlen = strlen(pathname);
-	const char *basename = strrchr(pathname, '/');
-	basename = (basename) ? basename+1 : pathname;
+	const char *base_name = strrchr(pathname, '/');
+	base_name = (base_name) ? base_name+1 : pathname;
 
-	prep_exclude(dir, istate, pathname, basename-pathname);
+	prep_exclude(dir, istate, pathname, base_name-pathname);
 
 	if (dir->pattern)
 		return dir->pattern;
 
 	return last_matching_pattern_from_lists(dir, istate, pathname, pathlen,
-			basename, dtype_p);
+			base_name, dtype_p);
 }
 
 /*

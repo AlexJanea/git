@@ -1499,7 +1499,7 @@ static int clear_ce_flags_1(struct index_state *istate,
 static int clear_ce_flags_dir(struct index_state *istate,
 			      struct cache_entry **cache, int nr,
 			      struct strbuf *prefix,
-			      char *basename,
+			      char *base_name,
 			      int select_mask, int clear_mask,
 			      struct pattern_list *pl,
 			      enum pattern_match_result default_match,
@@ -1510,7 +1510,7 @@ static int clear_ce_flags_dir(struct index_state *istate,
 	int rc;
 	enum pattern_match_result ret, orig_ret;
 	orig_ret = path_matches_pattern_list(prefix->buf, prefix->len,
-					     basename, &dtype, pl, istate);
+					     base_name, &dtype, pl, istate);
 
 	strbuf_addch(prefix, '/');
 

@@ -2188,9 +2188,9 @@ static int files_reflog_iterator_advance(struct ref_iterator *ref_iterator)
 
 		if (!S_ISREG(diter->st.st_mode))
 			continue;
-		if (diter->basename[0] == '.')
+		if (diter->base_name[0] == '.')
 			continue;
-		if (ends_with(diter->basename, ".lock"))
+		if (ends_with(diter->base_name, ".lock"))
 			continue;
 
 		if (!refs_resolve_ref_unsafe(iter->ref_store,

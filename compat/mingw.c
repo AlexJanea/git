@@ -397,7 +397,7 @@ int mingw_rmdir(const char *pathname)
 
 static inline int needs_hiding(const char *path)
 {
-	const char *basename;
+	const char *base_name;
 
 	if (hide_dotfiles == HIDE_DOTFILES_FALSE)
 		return 0;
@@ -407,24 +407,24 @@ static inline int needs_hiding(const char *path)
 	if (!*path)
 		return 0;
 
-	for (basename = path; *path; path++)
+	for (base_name = path; *path; path++)
 		if (is_dir_sep(*path)) {
 			do {
 				path++;
 			} while (is_dir_sep(*path));
 			/* ignore trailing slashes */
 			if (*path)
-				basename = path;
+				base_name = path;
 			else
 				break;
 		}
 
 	if (hide_dotfiles == HIDE_DOTFILES_TRUE)
-		return *basename == '.';
+		return *base_name == '.';
 
 	assert(hide_dotfiles == HIDE_DOTFILES_DOTGITONLY);
-	return !strncasecmp(".git", basename, 4) &&
-		(!basename[4] || is_dir_sep(basename[4]));
+	return !strncasecmp(".git", base_name, 4) &&
+		(!base_name[4] || is_dir_sep(base_name[4]));
 }
 
 static int set_hidden_flag(const wchar_t *path, int set)

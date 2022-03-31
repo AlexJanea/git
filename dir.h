@@ -391,7 +391,7 @@ enum pattern_match_result {
  */
 enum pattern_match_result path_matches_pattern_list(const char *pathname,
 				int pathlen,
-				const char *basename, int *dtype,
+				const char *base_name, int *dtype,
 				struct pattern_list *pl,
 				struct index_state *istate);
 

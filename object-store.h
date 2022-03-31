@@ -462,7 +462,7 @@ int oid_object_info_extended(struct repository *r,
 typedef int each_loose_object_fn(const struct object_id *oid,
 				 const char *path,
 				 void *data);
-typedef int each_loose_cruft_fn(const char *basename,
+typedef int each_loose_cruft_fn(const char *base_name,
 				const char *path,
 				void *data);
 typedef int each_loose_subdir_fn(unsigned int nr,

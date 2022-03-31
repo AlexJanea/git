@@ -3400,16 +3400,16 @@ static void record_entry_for_tree(struct directory_versions *dir_metadata,
 				  const char *path,
 				  struct merged_info *mi)
 {
-	const char *basename;
+	const char *base_name;
 
 	if (mi->is_null)
 		/* nothing to record */
 		return;
 
-	basename = path + mi->basename_offset;
-	assert(strchr(basename, '/') == NULL);
+	base_name = path + mi->basename_offset;
+	assert(strchr(base_name, '/') == NULL);
 	string_list_append(&dir_metadata->versions,
-			   basename)->util = &mi->result;
+			   base_name)->util = &mi->result;
 }
 
 static void write_completed_directory(struct merge_options *opt,

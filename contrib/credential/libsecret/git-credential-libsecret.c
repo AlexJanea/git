@@ -320,10 +320,10 @@ static void credential_write(const struct credential *c)
 static void usage(const char *name)
 {
 	struct credential_operation const *try_op = credential_helper_ops;
-	const char *basename = strrchr(name, '/');
+	const char *base_name = strrchr(name, '/');
 
-	basename = (basename) ? basename + 1 : name;
-	fprintf(stderr, "usage: %s <", basename);
+	base_name = (base_name) ? base_name + 1 : name;
+	fprintf(stderr, "usage: %s <", base_name);
 	while (try_op->name) {
 		fprintf(stderr, "%s", (try_op++)->name);
 		if (try_op->name)

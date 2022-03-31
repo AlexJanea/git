@@ -98,7 +98,7 @@ static int prune_object(const struct object_id *oid, const char *fullpath,
 	return 0;
 }
 
-static int prune_cruft(const char *basename, const char *path, void *data)
+static int prune_cruft(const char *base_name, const char *path, void *data)
 {
 	if (starts_with(basename, "tmp_obj_"))
 		prune_tmp_file(path);

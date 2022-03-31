@@ -659,9 +659,9 @@ static int fsck_loose(const struct object_id *oid, const char *path, void *data)
 	return 0; /* keep checking other objects, even if we saw an error */
 }
 
-static int fsck_cruft(const char *basename, const char *path, void *data)
+static int fsck_cruft(const char *base_name, const char *path, void *data)
 {
-	if (!starts_with(basename, "tmp_obj_"))
+	if (!starts_with(base_name, "tmp_obj_"))
 		fprintf_ln(stderr, _("bad sha1 file: %s"), path);
 	return 0;
 }

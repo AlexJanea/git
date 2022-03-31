@@ -109,7 +109,7 @@ static int prepare_next_entry_data(struct dir_iterator_int *iter,
 	 */
 	iter->base.relative_path = iter->base.path.buf +
 				   iter->levels[0].prefix_len;
-	iter->base.basename = iter->base.path.buf +
+	iter->base.base_name = iter->base.path.buf +
 			      iter->levels[iter->levels_nr - 1].prefix_len;
 
 	if (iter->flags & DIR_ITERATOR_FOLLOW_SYMLINKS)

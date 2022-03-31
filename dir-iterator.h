@@ -80,7 +80,7 @@ struct dir_iterator {
 	const char *relative_path;
 
 	/* The current basename: */
-	const char *basename;
+	const char *base_name;
 
 	/*
 	 * The result of calling lstat() on path; or stat(), if the

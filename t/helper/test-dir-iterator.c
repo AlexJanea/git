@@ -52,7 +52,7 @@ int cmd__dir_iterator(int argc, const char **argv)
 		else
 			printf("[?] ");
 
-		printf("(%s) [%s] %s\n", diter->relative_path, diter->basename,
+		printf("(%s) [%s] %s\n", diter->relative_path, diter->base_name,
 		       diter->path.buf);
 	}
 
