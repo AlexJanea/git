@@ -34,6 +34,14 @@
 #include "promisor-remote.h"
 #include "submodule.h"
 
+#if defined(WIN32)
+#include "Winbase.h"
+#elif defined(_GNU_SOURCE)
+#include <fcntl.h>
+#elif defined(__APPLE__)
+#include <stdio.h>
+#endif
+
 /* The maximum size for an object header. */
 #define MAX_HEADER_LEN 32
 
@@ -1821,16 +1829,43 @@ static void write_object_file_prepare_literally(const struct git_hash_algo *algo
 }
 
 /*
+ * Helper to rename a file without overwriting the destination.
+ */
+int rename_noreplace_helper(const char *tmpfile, const char *filename, int* needunlink)
+{	
+#if defined(WIN32)
+	*needunlink = 0;
+	if (MoveFile(tmpfile, filename) != 0)
+		return 0;
+	errno = err_win_to_posix(GetLastError());
+	return -1;
+#elif defined(_GNU_SOURCE)
+	*needunlink = 0;
+	return renameat2(AT_FDCWD, tmpfile, AT_FDCWD, filename, RENAME_NOREPLACE);
+#elif defined(__APPLE__)
+	*needunlink = 0;
+	return renameatx_np(AT_FDCWD, tmpfile, AT_FDCWD, filename, RENAME_EXCL);
+#else
+	*needunlink = 1;
+	return link(tmpfile, filename);
+#endif
+}
+
+/*
  * Move the just written object into its final resting place.
  */
 int finalize_object_file(const char *tmpfile, const char *filename)
 {
 	int ret = 0;
+	int needunlink = 0;
 
 	if (object_creation_mode == OBJECT_CREATION_USES_RENAMES)
 		goto try_rename;
-	else if (link(tmpfile, filename))
+	else if (rename_noreplace_helper(tmpfile, filename, &needunlink))
 		ret = errno;
+	
+	if (!needunlink)
+		goto out;
 
 	/*
 	 * Coda hack - coda doesn't like cross-directory links,
@@ -1845,19 +1880,22 @@ int finalize_object_file(const char *tmpfile, const char *filename)
 	 */
 	if (ret && ret != EEXIST) {
 	try_rename:
-		if (!rename(tmpfile, filename))
+		if (!rename(tmpfile, filename)){
+			ret = 0;
 			goto out;
+		}
 		ret = errno;
 	}
 	unlink_or_warn(tmpfile);
+
+out:
 	if (ret) {
 		if (ret != EEXIST) {
 			return error_errno(_("unable to write file %s"), filename);
 		}
 		/* FIXME!!! Collision check here ? */
 	}
-
-out:
+	
 	if (adjust_shared_perm(filename))
 		return error(_("unable to set permission to '%s'"), filename);
 	return 0;
