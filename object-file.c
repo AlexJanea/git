@@ -1830,22 +1830,27 @@ static void write_object_file_prepare_literally(const struct git_hash_algo *algo
 
 /*
  * Helper to rename a file without overwriting the destination.
+ * Basic rename cannot be used because it will overwrite the destination file.
  */
 int rename_noreplace_helper(const char *tmpfile, const char *filename, int* needunlink)
 {	
 #if defined(WIN32)
 	*needunlink = 0;
+	/* MoveFile returns an error by default if destination exists */
 	if (MoveFile(tmpfile, filename) != 0)
 		return 0;
 	errno = err_win_to_posix(GetLastError());
 	return -1;
 #elif defined(_GNU_SOURCE)
 	*needunlink = 0;
+	/* using RENAME_NOREPLACE so destination is not deleted, and error is returned */
 	return renameat2(AT_FDCWD, tmpfile, AT_FDCWD, filename, RENAME_NOREPLACE);
 #elif defined(__APPLE__)
 	*needunlink = 0;
+	/* using RENAME_EXCL so EEXIST is returned if the destination already exists */
 	return renameatx_np(AT_FDCWD, tmpfile, AT_FDCWD, filename, RENAME_EXCL);
 #else
+	/* fallback to default link/unlink behaviour */
 	*needunlink = 1;
 	return link(tmpfile, filename);
 #endif
@@ -1864,6 +1869,7 @@ int finalize_object_file(const char *tmpfile, const char *filename)
 	else if (rename_noreplace_helper(tmpfile, filename, &needunlink))
 		ret = errno;
 	
+	/* If specialized OS function was used, we don't need to unlink or rename */
 	if (!needunlink)
 		goto out;
 
